@@ -220,6 +220,42 @@ def run_harness_polyglot(entry, model_name_or_path, patch_files, num_evals, outp
         metadata['overall_performance_deep'] = overall_performance
         safe_log("End of evaluation more")
 
+
+# Key modifications to self_improve_step.py
+
+def run_harness_ml(entry, model_name_or_path, patch_files, num_evals, output_dir, metadata, run_id, test_more_threshold,
+                   test_task_list, test_task_list_more):
+    """Run ML evaluation harness instead of SWE-bench"""
+    safe_log('Start ML harness')
+    test_task_list = [entry] if test_task_list is None else test_task_list
+
+    # Import ML harness instead of SWE-bench
+    from ml_bench.harness import harness as ml_harness
+
+    dnames = ml_harness(
+        test_task_list=test_task_list,
+        model_name_or_path=model_name_or_path,
+        model_patch_paths=patch_files,
+        num_evals=num_evals,
+        pred_dname=os.path.join(output_dir, "predictions"),
+    )
+    metadata['ml_dnames'] = [str(dn) for dn in dnames]
+
+    # Generate ML-specific performance metrics
+    from ml_bench.report import make_report as ml_make_report
+    ml_make_report(
+        dnames,
+        run_ids=[f"{run_id}_{i}" for i in range(len(dnames))],
+        dataset_name="ML-Bench",
+        output_dir=output_dir,
+    )
+
+    # Get ML performance metrics
+    performances, overall_performance = get_all_ml_performance(model_name_or_path, results_dir=output_dir)
+    metadata['overall_performance'] = overall_performance
+    safe_log("End of ML evaluation")
+
+
 def self_improve(
     parent_commit='initial',  # 'initial' if starting from original dgm, else the run_id
     output_dir='output_selfimprove/',

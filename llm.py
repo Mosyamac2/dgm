@@ -39,7 +39,89 @@ AVAILABLE_LLMS = [
     "deepseek-chat",
     "deepseek-coder",
     "deepseek-reasoner",
+    #GigaChat models
+    "gigachat-max-2",
+    "gigachat-pro",
+    "gigachat"
 ]
+
+
+class GigaChatClient:
+    """GigaChat API client for interacting with Sber's GigaChat models"""
+
+    def __init__(self, credentials=None, scope="GIGACHAT_API_PERS"):
+        self.credentials = credentials or os.getenv("GIGACHAT_CREDENTIALS")
+        self.scope = scope
+        self.base_url = "https://gigachat.devices.sberbank.ru"
+        self.auth_url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+        self.access_token = None
+        self.token_expires_at = 0
+
+        if not self.credentials:
+            raise ValueError("GigaChat credentials not provided")
+
+    def _get_access_token(self):
+        """Get or refresh access token"""
+        import time
+
+        if self.access_token and time.time() < self.token_expires_at:
+            return self.access_token
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "RqUID": str(uuid.uuid4()),
+            "Authorization": f"Basic {self.credentials}"
+        }
+
+        data = {"scope": self.scope}
+
+        response = requests.post(self.auth_url, headers=headers, data=data, verify=False)
+        response.raise_for_status()
+
+        token_data = response.json()
+        self.access_token = token_data["access_token"]
+        # Token expires in 30 minutes, refresh 5 minutes early
+        self.token_expires_at = time.time() + (25 * 60)
+
+        return self.access_token
+
+    def chat_completions_create(self, model, messages, temperature=0.7, max_tokens=MAX_OUTPUT_TOKENS, **kwargs):
+        """Create chat completion similar to OpenAI API"""
+        token = self._get_access_token()
+
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}"
+        }
+
+        # Convert model name to GigaChat format
+        if model == "gigachat-max-2":
+            model_name = "GigaChat-Max"
+        elif model == "gigachat-pro":
+            model_name = "GigaChat-Pro"
+        else:
+            model_name = "GigaChat"
+
+        data = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            **kwargs
+        }
+
+        response = requests.post(
+            f"{self.base_url}/api/v1/chat/completions",
+            headers=headers,
+            json=data,
+            verify=False
+        )
+        response.raise_for_status()
+
+        return response.json()
+
 
 def create_client(model: str):
     """
@@ -81,6 +163,9 @@ def create_client(model: str):
             api_key=os.environ["OPENROUTER_API_KEY"],
             base_url="https://openrouter.ai/api/v1"
         ), model
+    elif model.startswith("gigachat"):
+        print(f"Using GigaChat API with model {model}.")
+        return GigaChatClient(), model
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -291,6 +376,19 @@ def get_response_from_llm(
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
         resoning_content = response.choices[0].message.reasoning_content
+    elif model.startswith("gigachat"):
+        # Handle GigaChat models
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        messages = [{"role": "system", "content": system_message}] + new_msg_history
+
+        response = client.chat_completions_create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=MAX_OUTPUT_TOKENS,
+        )
+        content = response["choices"][0]["message"]["content"]
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     else:
         raise ValueError(f"Model {model} not supported.")
     if print_debug:

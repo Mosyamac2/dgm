@@ -21,3 +21,11 @@ unidiff
 pytest
 pytest-asyncio
 async_timeout
+
+# ML dependencies
+scikit-learn>=1.0.0
+pandas>=1.3.0
+numpy>=1.21.0
+
+# GigaChat dependencies
+requests>=2.25.0

@@ -12,6 +12,7 @@ from tools import load_all_tools
 
 CLAUDE_MODEL = 'bedrock/us.anthropic.claude-3-5-sonnet-20241022-v2:0'
 OPENAI_MODEL = 'o3-mini-2025-01-31'
+GIGACHAT_MODEL = 'gigachat-max-2'  # Default to GigaChat now
 
 def process_tool_call(tools_dict, tool_name, tool_input):
     try:
@@ -511,9 +512,22 @@ def chat_with_agent_openai(
 
     return new_msg_history
 
+def chat_with_agent_gigachat(
+    msg,
+    model='gigachat-max-2',
+    msg_history=None,
+    logging=print,
+    ):
+    """
+    Chat with GigaChat using manual tool calling approach.
+    """
+    # Use manual tool calling for GigaChat since it doesn't have native tool calling
+    return chat_with_agent_manualtools(msg, model=model, msg_history=msg_history, logging=logging)
+
 def chat_with_agent(
     msg,
-    model=CLAUDE_MODEL,
+    #model=CLAUDE_MODEL,
+    model=GIGACHAT_MODEL,  # Default to GigaChat now
     msg_history=None,
     logging=print,
     convert=False,  # Convert the message history to a generic format, so that msg_history can be used across models
@@ -536,7 +550,9 @@ def chat_with_agent(
         # Current version does not support cross-model conversion
         # new_msg_history = convert_msg_history(new_msg_history, model=model)
         new_msg_history = msg_history + new_msg_history
-
+    elif model.startswith('gigachat'):
+        # GigaChat models
+        new_msg_history = chat_with_agent_gigachat(msg, model=model, msg_history=msg_history, logging=logging)
     else:
         # Models without in-built tool calling
         new_msg_history = chat_with_agent_manualtools(msg, model=model, msg_history=msg_history, logging=logging)
