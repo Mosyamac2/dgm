@@ -2,6 +2,7 @@ import os
 import json
 
 from utils.common_utils import load_json_file, read_file
+from ml_bench.load_ml_dataset import load_ml_dataset_info, load_ml_dataset
 
 coding_agent_summary = """# Coding Agent Summary
 
@@ -61,6 +62,39 @@ Other arguments than you have seen are not permitted. For example, in "edit_line
 \n\n
 """
 
+coding_agent_summary_ml = """# Coding Agent Summary (ML Focus)
+
+- **Main File**: `coding_agent.py`
+  - Primary Class: `AgenticSystem`
+  - The `forward()` function is the central entry point.
+  - Prompts are located either within the `forward()` function or in the `prompts/` directory.
+- **Tools**: `tools/`
+  - The `tools/` directory contains various tools that LLMs can use to perform specific tasks.
+  - Each tool must have a `tool_info()` function that returns a JSON object containing 'name', 'description', and 'input_schema'. The 'input_schema' should be a JSON object containing 'type', 'properties', and 'required'.
+  - Each tool must have a `tool_function()` function that takes the arguments defined in input_schema, performs the tool's task, and returns a string.
+  - See other tools for reference.
+- **Utilities**: `utils/`
+  - The `utils/` directory contains utility functions used across the codebase.
+- **Additional Details**:
+  - The agent is very good at automatically utilizing the right available tools at the right time. So do not have an agentic flow that explicitly forces a tool's usage.
+  - Common tools, such as file editing and bash commands, are easy for the agent to recognize and use appropriately. However, more complex and niche tools may require explicit instructions in the prompt.
+  - Tools should be designed to be as general as possible, ensuring they work across any GitHub repository. Avoid hardcoding repository-specific details or behaviors (e.g., paths).
+  - Do not use 'while True' loops in the agent's code. This can cause the agent to get stuck and not respond.
+  - Verify the implementation details of helper functions prior to usage to ensure proper integration and expected behavior.
+  - Do not install additional packages or dependencies directly. Update `requirements.txt` if new dependencies are required and install them using `pip install -r requirements.txt`.
+- **ML-Specific Details**:
+  - The agent is focused on machine learning tasks including data preprocessing, model training, and evaluation.
+  - The agent should create comprehensive ML pipelines that are reproducible and well-documented.
+  - Common ML libraries (scikit-learn, pandas, numpy, matplotlib) are available.
+  - The agent should implement proper evaluation metrics and automated testing.
+  - Model performance should be the primary focus, with accuracy and other relevant metrics clearly reported.
+  - The agent is very good at automatically utilizing the right available tools at the right time.
+  - Tools should be designed to be as general as possible, ensuring they work across any ML task.
+  - Do not use 'while True' loops in the agent's code. This can cause the agent to get stuck and not respond.
+  - Verify the implementation details of helper functions prior to usage to ensure proper integration.
+  - Do not install additional packages or dependencies directly. Update `requirements.txt` if new dependencies are required.
+\n\n"""
+
 diagnose_system_message = """Here is the implementation of the coding agent.
 
 # Coding Agent Implementation
@@ -71,8 +105,20 @@ diagnose_system_message = """Here is the implementation of the coding agent.
 Your task is to identify ONE detailed plan that would improve the agent's coding ability. The improvement should not be specific to any particular GitHub issue or repository.
 """
 
+diagnose_system_message_ml = """Here is the implementation of the coding agent.
+
+# Coding Agent Implementation
+----- Coding Agent Implementation Start -----
+{code}
+----- Coding Agent Implementation End -----
+
+Your task is to identify ONE detailed plan that would improve the agent's coding ability and ML model developing skills. The improvement should not be specific to any particular GitHub issue or repository.
+"""
+
 swe_issue_prompt = "Here is the log for the coding agent trying to solve the GitHub issues but failed."
 polyglot_issue_prompt = "Here is the log for the coding agent trying to solve a programming task. A task is in one programming language, but the coding agent needs to deal with different languages including C++, Go, Java, JavaScript, Python, and Rust."
+# Add ML-specific diagnose prompts
+ml_issue_prompt = "Here is the log for the coding agent trying to solve the machine learning task."
 
 diagnose_prompt = """
 # Agent Running Log
@@ -118,6 +164,48 @@ In <JSON>, provide a JSON response with the following fields:
 - "problem_description": Phrase the improvement proposal and implementation suggestion as a GitHub issue description. It should clearly describe the feature so that a software engineer viewing the issue and the repository can implement it.
 
 Your response will be automatically parsed, so ensure that the string response is precisely in the correct format. Do NOT include the `<JSON>` tag in your output."""
+
+
+diagnose_prompt_ml = """
+# Agent Running Log
+----- Agent Running Log Start -----
+{md_log}
+----- Agent Running Log End -----
+
+# Original task description for ML Model
+The task and the baseline description of ML Model that the agent is trying to improve.
+----- ML Model Task Start -----
+{ml_desc}
+----- ML Model Task End -----
+
+# Predicted Patch
+The agent's predicted patch to solve the issue.
+----- Predicted Patch Start -----
+{predicted_patch}
+----- Predicted Patch End -----
+
+# ML Model Test Results
+The test results for the ML Model
+----- ML Model Test Results Start -----
+{eval_log}
+----- ML Model Test Results End -----
+
+Respond precisely in the following format including the JSON start and end markers:
+
+```json
+<JSON>
+```
+
+In <JSON>, provide a JSON response with the following fields:
+- "log_summarization": Analyze the above logs and summarize how the agent tried to solve the task to build the ML Model. Note which tools and how they are used, the agent's problem-solving approach, and any issues encountered.
+- "potential_improvements": Identify potential improvements to the coding agent that could enhance its ML modeling capabilities. Focus on the agent's general coding abilities (e.g., better or new tools usable across any repository) as well as the agent's data analysis and  ML models developing skills. All necessary dependencies and environment setup have already been handled, so do not focus on these aspects.
+- "improvement_proposal": Choose ONE high-impact improvement from the identified potential improvements and describe it in detail. This should be a focused and comprehensive plan to enhance the agent's overall coding and ML-modeling ability.
+- "implementation_suggestion": Referring to the coding agent's summary and implementation, think critically about what feature or tool could be added or improved to best implement the proposed improvement. If the proposed feature can be implemented by modifying the existing tools, describe the modifications needed, instead of suggesting a new tool.
+- "problem_description": Phrase the improvement proposal and implementation suggestion as a GitHub issue description. It should clearly describe the feature so that a software engineer viewing the issue and the repository can implement it.
+
+Your response will be automatically parsed, so ensure that the string response is precisely in the correct format. Do NOT include the `<JSON>` tag in your output."""
+
+
 
 diagnose_prompt_emptypatches = """There are some empty patches when attempting to solve GitHub issues. Since the coding agent is stochastic, it may not always produce a patch. Handle cases where the coding agent fails to generate a patch or generates one that only modifies the test cases without editing the primary source code. For example, the simplest solution is to ask the agent to try again.
 
@@ -366,6 +454,60 @@ def get_diagnose_prompt_polyglot(entry_id, commit, root_dir, out_dir, dataset, p
         # Get user prompt for solving empty patches
         return coding_agent_summary_polyglot + diagnose_system_message.format(code=code_text), diagnose_prompt_emptypatches_polyglot.format(md_log=md_log)
     return coding_agent_summary_polyglot + diagnose_system_message.format(code=code_text), polyglot_issue_prompt + diagnose_prompt.format(md_log=md_log, eval_log=eval_log, predicted_patch=predicted_patch, answer_patch=answer_patch, test_patch=test_patch, github_issue=github_issue)
+
+def get_diagnose_prompt_ml(entry_id, commit, root_dir, out_dir, dataset, patch_files=[]):
+    """Get diagnose prompt for ML tasks
+    Args:
+        entry_id: ML task identifier (e.g., "iris_classification", "breast_cancer_regression")
+        commit: Current commit hash
+        root_dir: Root directory of the repository
+        out_dir: Output directory
+        dataset: ML dataset information
+        patch_files: List of patch files to apply
+
+    Returns:
+        tuple: (diagnose_system_message_out, diagnose_prompt_out)
+    """
+    # Load ML dataset info WRITE FUNCTION! TODO
+    ml_dataset_info = load_ml_dataset_info(entry_id)
+
+    ml_dataset = load_ml_dataset_info()
+    ml_task = ml_dataset[entry_id]  # e.g., "iris_classification"
+
+    # Use the dataset info
+    dataset_info = {
+        "name": ml_task["dataset_name"],
+        "features": ml_task["features"],
+        "target": ml_task["target"],
+        "ml_desc": ml_task["short_description"]
+    }
+
+    # Similar to get_diagnose_prompt_swe but for ML tasks
+    md_logs, eval_logs, predicted_patches, eval_results = find_selfimprove_eval_logs(entry_id, out_dir,commit_id=commit)
+    md_log, eval_log, predicted_patch, eval_result = process_selfimprove_eval_logs(md_logs, eval_logs, predicted_patches, eval_results)
+
+    entry = next((e for e in dataset if e['task_id'] == entry_id), None)
+    ml_task = entry['short_description']
+
+    diagnose_prompt_out = ml_issue_prompt + diagnose_prompt_ml.format(
+        md_log=md_log,
+        ml_desc = dataset_info["ml_desc"],
+        eval_log=eval_log,
+        predicted_patch=predicted_patch
+    )
+
+    # Get system prompt
+    code_files = ['coding_agent.py', 'tools/', 'utils/']
+    exclude_files = [
+        'utils/evo_utils.py',
+        'utils/docker_utils.py',
+        'utils/swe_log_parsers.py',
+        'prompts/self_improvement_prompt.py',
+    ]
+    code_text = get_current_code(root_dir, code_files, patch_files=patch_files, exclude_files=exclude_files)
+    diagnose_system_message_out = coding_agent_summary_ml + diagnose_system_message_ml.format(code=code_text)
+
+    return diagnose_system_message_out, diagnose_prompt_out
 
 
 def get_eval_log_text(eval_json, test_status=None):

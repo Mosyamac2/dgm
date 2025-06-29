@@ -5,7 +5,7 @@ import os
 import docker
 
 from llm import create_client, get_response_from_llm, extract_json_between_markers
-from prompts.self_improvement_prompt import get_diagnose_prompt_polyglot, get_diagnose_prompt_swe, get_problem_description_prompt
+from prompts.self_improvement_prompt import get_diagnose_prompt_polyglot, get_diagnose_prompt_swe, get_diagnose_prompt_ml, get_problem_description_prompt
 from prompts.diagnose_improvement_prompt import get_diagnose_improvement_prompt
 from prompts.testrepo_prompt import get_test_description
 from swe_bench.harness import harness
@@ -27,10 +27,15 @@ from utils.docker_utils import (
 dataset = None
 diagnose_model = 'o1-2024-12-17'
 
-def diagnose_problem(entry, commit, root_dir, out_dir, patch_files=[], max_attempts=3, polyglot=False):
+def diagnose_problem(entry, commit, root_dir, out_dir, patch_files=[], max_attempts=3, polyglot=False, task_ml = True):
     client = create_client(diagnose_model)
     if polyglot:
         diagnose_sys_message, diagnose_prompt = get_diagnose_prompt_polyglot(
+            entry, commit, root_dir, out_dir, dataset,
+            patch_files=patch_files,
+        )
+    elif task_ml:
+        diagnose_sys_message, diagnose_prompt = get_diagnose_prompt_ml(
             entry, commit, root_dir, out_dir, dataset,
             patch_files=patch_files,
         )
@@ -270,7 +275,8 @@ def self_improve(
     full_eval_threshold=None,
     # Run baseline
     run_baseline=None,
-    polyglot=False
+    polyglot=False,
+    task_ml = True
 ):  
 
     global dataset
@@ -351,7 +357,7 @@ def self_improve(
     # Get tasks to improve
     if entry:
         safe_log(f"Task to improve: {entry}")
-        problem_statement = diagnose_problem(entry, parent_commit, root_dir, out_dir_base, patch_files=patch_files, polyglot=polyglot)
+        problem_statement = diagnose_problem(entry, parent_commit, root_dir, out_dir_base, patch_files=patch_files, polyglot=polyglot, task_ml= task_ml)
         safe_log(f"problem_statement: {problem_statement}")
     else:
         safe_log("No entry provided. Exiting.")
@@ -429,6 +435,8 @@ def self_improve(
         try:
             if not polyglot:
                 run_harness_swe(entry, model_name_or_path, patch_files, num_evals, output_dir, metadata, run_id, test_more_threshold, test_task_list, test_task_list_more)
+            elif task_ml:
+                run_harness_ml(entry, model_name_or_path, patch_files, num_evals, output_dir, metadata, run_id, test_more_threshold, test_task_list)
             else:
                 run_harness_polyglot(entry, model_name_or_path, patch_files, num_evals, output_dir, metadata, run_id, test_more_threshold, test_task_list, test_task_list_more)
         except Exception as e:
@@ -464,6 +472,7 @@ def main():
     parser.add_argument('--no_post_improve_diagnose', default=False, action='store_true', help='Skip diagnosing the self-improvement after evaluation')
     parser.add_argument('--entry', default="django__django-10999", type=str, help='Task entry to improve')
     parser.add_argument('--test_task_list', default=None, type=str, help='List of tasks to evaluate the self-improvement')
+    parser.add_argument("--task_ml", default=True, action='store_true',help="Run ML tasks instead of SWE-bench or Polyglot")
     args = parser.parse_args()
 
     # Copy cached initial version into experiment dir
@@ -477,6 +486,7 @@ def main():
         post_improve_diagnose=not args.no_post_improve_diagnose,
         entry=args.entry,
         test_task_list=args.test_task_list,
+        task_ml = args.task_ml
     )
 
 if __name__ == "__main__":

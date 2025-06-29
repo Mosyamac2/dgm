@@ -1,0 +1,64 @@
+[
+  {
+    "task_id": "123",
+    "short_description": "Build a classification model to predict whether or not the customer that has booked a reservation is not going to cancel it",
+    "train_dataset_path": "/ML-tasks/nsb/train.csv",
+    "test_dataset_path": "/ML-tasks/nsb/test.csv",
+    "model_script": "/ML-tasks/nsb/dev_script.py",
+    "model_report": "/ML-tasks/nsb/dev_report.docx",
+    "target_variables": [
+      "target"
+    ],
+    "features": [
+      "id",
+      "id_object",
+      "book_number",
+      "rooms",
+      "amount",
+      "prepay",
+      "price_per_night",
+      "pmnt_type",
+      "date_book",
+      "date_cancel",
+      "date_in",
+      "nights",
+      "date_out",
+      "channel",
+      "status_book",
+      "object",
+      "guests",
+      "room_type_agg"
+    ]
+  },
+  {
+    "task_id": "234",
+    "short_description": "Build a classification model to predict whether or not the customer that has booked a reservation is not going to cancel it",
+    "train_dataset_path": "/ML-tasks/nsb2/train.csv",
+    "test_dataset_path": "/ML-tasks/nsb2/test.csv",
+    "model_script": "/ML-tasks/nsb2/dev_script.py",
+    "model_report": "/ML-tasks/nsb2/dev_report.docx",
+    "target_variables": [
+      "target"
+    ],
+    "features": [
+      "id",
+      "id_object",
+      "book_number",
+      "rooms",
+      "amount",
+      "prepay",
+      "price_per_night",
+      "pmnt_type",
+      "date_book",
+      "date_cancel",
+      "date_in",
+      "nights",
+      "date_out",
+      "channel",
+      "status_book",
+      "object",
+      "guests",
+      "room_type_agg"
+    ]
+  }
+]

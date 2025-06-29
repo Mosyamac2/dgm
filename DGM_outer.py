@@ -47,7 +47,7 @@ def any_exceeding_context_length(output_dir, commit_id, instance_ids):
             return True
     return False
 
-def choose_selfimproves(output_dir, archive, selfimprove_size, method='random', run_baseline=None, polyglot=False):
+def choose_selfimproves(output_dir, archive, selfimprove_size, method='random', run_baseline=None, polyglot=False, task_ml = True):
     """
     Choose self-improve attempts for the current generation.
     """
@@ -235,6 +235,7 @@ def main():
     parser.add_argument('--post_improve_diagnose', default=False, action='store_true', help='Diagnose the self-improvement after evaluation')
     parser.add_argument("--shallow_eval", default=False, action='store_true', help="Run single shallow evaluation for self-improvement on swe.")
     parser.add_argument("--polyglot", default=False, action='store_true', help="Run single shallow evaluation for self-improvement on swe.")
+    parser.add_argument("--task_ml", default=True, action='store_true', help="Run ML tasks instead of SWE-bench or Polyglot")
     parser.add_argument("--eval_noise", type=float, default=0.1, help="Noise leeway for evaluation.")
     parser.add_argument("--no_full_eval", default=False, action='store_true', help="Do not run full evaluation on swe if a node is the top N highest performing.")
     # baselines
